@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV Data Analyzer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <h1>CSV Data Analyzer</h1>
+  <p class="subtitle">Upload a CSV file and run quick statistical analyses directly in your browser.</p>
+</header>
+
+<main>
+  <section class="card" id="uploadCard">
+    <h2>1. Upload CSV</h2>
+    <div class="upload-controls">
+      <label for="csvFile" class="file-label">Choose CSV file</label>
+      <input type="file" id="csvFile" accept=".csv" />
+      <span id="fileName" class="file-name">No file selected</span>
+    </div>
+    <p id="uploadStatus" class="status-text"></p>
+  </section>
+
+  <section class="card" id="previewCard" hidden>
+    <h2>2. Data Preview</h2>
+    <p id="previewInfo" class="status-text"></p>
+    <div class="table-scroll">
+      <table id="previewTable"></table>
+    </div>
+  </section>
+
+  <section class="card" id="analysisCard" hidden>
+    <h2>3. Run Analysis</h2>
+    <div class="analysis-controls">
+      <div class="control-group">
+        <label for="functionSelect">Function</label>
+        <select id="functionSelect">
+          <option value="mode">Mode (most frequent value)</option>
+          <option value="mean">Mean</option>
+          <option value="median">Median</option>
+          <option value="std">Standard Deviation</option>
+          <option value="unique">Unique Value Count + Values</option>
+          <option value="filterCount">Count with Filters</option>
+        </select>
+      </div>
+
+      <div class="control-group" id="columnControl">
+        <label for="columnSelect">Column</label>
+        <select id="columnSelect"></select>
+      </div>
+
+      <div class="control-group" id="filterControl" hidden>
+        <label>Filter Conditions (all must match)</label>
+        <div id="filterConditions"></div>
+        <button type="button" id="addConditionBtn" class="secondary-btn">+ Add condition</button>
+      </div>
+
+      <button type="button" id="runAnalysisBtn" class="primary-btn">Run</button>
+    </div>
+  </section>
+
+  <section class="card" id="resultsCard" hidden>
+    <div class="results-header">
+      <h2>4. Results</h2>
+      <button type="button" id="clearResultsBtn" class="secondary-btn">Clear results</button>
+    </div>
+    <div id="resultsOutput"></div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>Runs entirely in your browser &mdash; no data is uploaded to a server.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
