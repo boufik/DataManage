@@ -24,10 +24,27 @@
   const functionSelect = document.getElementById('functionSelect');
   const columnControl = document.getElementById('columnControl');
   const columnSelect = document.getElementById('columnSelect');
-  const filterControl = document.getElementById('filterControl');
+  const selectControl = document.getElementById('selectControl');
+  const selectColumnsContainer = document.getElementById('selectColumns');
+  const whereControl = document.getElementById('whereControl');
   const filterConditions = document.getElementById('filterConditions');
   const addConditionBtn = document.getElementById('addConditionBtn');
+  const orderByControl = document.getElementById('orderByControl');
+  const orderBySelect = document.getElementById('orderBySelect');
+  const orderDirSelect = document.getElementById('orderDirSelect');
+  const limitControl = document.getElementById('limitControl');
+  const limitInput = document.getElementById('limitInput');
   const runAnalysisBtn = document.getElementById('runAnalysisBtn');
+
+  const FUNCTION_FIELDS = {
+    mode: ['column'],
+    mean: ['column'],
+    median: ['column'],
+    std: ['column'],
+    unique: ['column'],
+    filterCount: ['where'],
+    query: ['select', 'where', 'orderBy', 'limit']
+  };
 
   const resultsCard = document.getElementById('resultsCard');
   const resultsOutput = document.getElementById('resultsOutput');
@@ -124,11 +141,29 @@
 
   function populateColumnSelects() {
     columnSelect.innerHTML = '';
+    orderBySelect.innerHTML = '<option value="">(none)</option>';
+    selectColumnsContainer.innerHTML = '';
+
     state.columns.forEach((col) => {
       const opt = document.createElement('option');
       opt.value = col;
       opt.textContent = `${col} (${state.types[col]})`;
       columnSelect.appendChild(opt);
+
+      const orderOpt = document.createElement('option');
+      orderOpt.value = col;
+      orderOpt.textContent = col;
+      orderBySelect.appendChild(orderOpt);
+
+      const checkboxLabel = document.createElement('label');
+      checkboxLabel.className = 'checkbox-item';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = col;
+      checkbox.checked = true;
+      checkboxLabel.appendChild(checkbox);
+      checkboxLabel.appendChild(document.createTextNode(col));
+      selectColumnsContainer.appendChild(checkboxLabel);
     });
 
     filterConditions.innerHTML = '';
@@ -138,13 +173,12 @@
 
   function updateControlVisibility() {
     const fn = functionSelect.value;
-    if (fn === 'filterCount') {
-      columnControl.hidden = true;
-      filterControl.hidden = false;
-    } else {
-      columnControl.hidden = false;
-      filterControl.hidden = true;
-    }
+    const activeFields = FUNCTION_FIELDS[fn] || [];
+    columnControl.hidden = !activeFields.includes('column');
+    selectControl.hidden = !activeFields.includes('select');
+    whereControl.hidden = !activeFields.includes('where');
+    orderByControl.hidden = !activeFields.includes('orderBy');
+    limitControl.hidden = !activeFields.includes('limit');
   }
 
   function addFilterCondition() {
@@ -201,8 +235,17 @@
       case 'std': runNumericAggregate('std', 'Standard Deviation'); break;
       case 'unique': runUniqueAnalysis(); break;
       case 'filterCount': runFilterCountAnalysis(); break;
+      case 'query': runQueryAnalysis(); break;
       default: break;
     }
+  }
+
+  function getWhereConditions() {
+    return [...filterConditions.querySelectorAll('.filter-condition')].map((row) => ({
+      col: row.querySelector('.filter-col').value,
+      op: row.querySelector('.filter-op').value,
+      val: row.querySelector('.filter-val').value
+    }));
   }
 
   function getColumnValues(col) {
@@ -335,29 +378,140 @@
   }
 
   function runFilterCountAnalysis() {
-    const conditionRows = [...filterConditions.querySelectorAll('.filter-condition')];
-    const conditions = conditionRows.map((row) => ({
-      col: row.querySelector('.filter-col').value,
-      op: row.querySelector('.filter-op').value,
-      val: row.querySelector('.filter-val').value
-    }));
-
-    if (conditions.length === 0) {
-      appendResult('Count with Filters', '<p>Add at least one filter condition.</p>');
-      return;
-    }
+    const conditions = getWhereConditions();
 
     const matchCount = state.rows.filter((row) =>
       conditions.every((c) => matchesCondition(row, c.col, c.op, c.val))
     ).length;
 
-    const description = conditions.map((c) => `${c.col} ${c.op} "${c.val}"`).join(' AND ');
+    const description = conditions.length
+      ? conditions.map((c) => `${c.col} ${c.op} "${c.val}"`).join(' AND ')
+      : '(no filters — counting all rows)';
     const rows = [
       ['Matching rows', String(matchCount)],
       ['Total rows', String(state.rows.length)],
       ['Conditions', description]
     ];
     appendResult('Count with Filters', buildKeyValueTable(rows));
+  }
+
+  function compareValues(a, b) {
+    if (typeof a === 'number' && typeof b === 'number') return a - b;
+    const aStr = a === null || a === undefined ? '' : String(a);
+    const bStr = b === null || b === undefined ? '' : String(b);
+    return aStr.localeCompare(bStr, undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  function formatSqlValue(rawValue) {
+    const num = parseFloat(rawValue);
+    return !Number.isNaN(num) && String(num) === rawValue.trim() ? num : `"${rawValue}"`;
+  }
+
+  function buildSqlString(cols, conditions, orderCol, orderDir, limitRaw) {
+    let sql = `SELECT ${cols.length ? cols.join(', ') : '*'} FROM table`;
+    if (conditions.length) {
+      const opText = { '=': '==' };
+      const whereParts = conditions.map(
+        (c) => `${c.col} ${opText[c.op] || c.op} ${formatSqlValue(c.val)}`
+      );
+      sql += ` WHERE ${whereParts.join(' AND ')}`;
+    }
+    if (orderCol) sql += ` ORDER BY ${orderCol} ${orderDir}`;
+    if (limitRaw !== '') sql += ` LIMIT ${limitRaw}`;
+    return `${sql};`;
+  }
+
+  function runQueryAnalysis() {
+    const selectedCols = [...selectColumnsContainer.querySelectorAll('input[type="checkbox"]:checked')]
+      .map((cb) => cb.value);
+
+    if (selectedCols.length === 0) {
+      appendResult('SQL Query', '<p>Select at least one column in SELECT.</p>');
+      return;
+    }
+
+    const conditions = getWhereConditions();
+    const orderCol = orderBySelect.value;
+    const orderDir = orderDirSelect.value;
+    const limitRaw = limitInput.value.trim();
+
+    let resultRows = state.rows.filter((row) =>
+      conditions.every((c) => matchesCondition(row, c.col, c.op, c.val))
+    );
+
+    if (orderCol) {
+      const dirMultiplier = orderDir === 'DESC' ? -1 : 1;
+      resultRows = [...resultRows].sort(
+        (a, b) => compareValues(a[orderCol], b[orderCol]) * dirMultiplier
+      );
+    }
+
+    const totalMatched = resultRows.length;
+
+    if (limitRaw !== '') {
+      const n = parseInt(limitRaw, 10);
+      if (!Number.isNaN(n) && n >= 0) resultRows = resultRows.slice(0, n);
+    }
+
+    const projectedRows = resultRows.map((row) => {
+      const obj = {};
+      selectedCols.forEach((col) => { obj[col] = row[col]; });
+      return obj;
+    });
+
+    const sqlText = buildSqlString(selectedCols, conditions, orderCol, orderDir, limitRaw);
+    appendQueryResult(sqlText, selectedCols, projectedRows, totalMatched);
+  }
+
+  function appendQueryResult(sqlText, cols, rows, totalMatched) {
+    const card = document.createElement('div');
+    card.className = 'result-item';
+
+    const heading = document.createElement('h3');
+    heading.textContent = 'SQL Query';
+    card.appendChild(heading);
+
+    const sqlEl = document.createElement('pre');
+    sqlEl.className = 'sql-text';
+    sqlEl.textContent = sqlText;
+    card.appendChild(sqlEl);
+
+    const info = document.createElement('p');
+    info.className = 'status-text';
+    info.textContent = `${rows.length} row(s) returned (${totalMatched} matched before LIMIT).`;
+    card.appendChild(info);
+
+    const scrollWrap = document.createElement('div');
+    scrollWrap.className = 'table-scroll';
+    const table = document.createElement('table');
+
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    cols.forEach((col) => {
+      const th = document.createElement('th');
+      th.textContent = col;
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+
+    const tbody = document.createElement('tbody');
+    rows.forEach((row) => {
+      const tr = document.createElement('tr');
+      cols.forEach((col) => {
+        const td = document.createElement('td');
+        const val = row[col];
+        td.textContent = val === null || val === undefined ? '' : String(val);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    scrollWrap.appendChild(table);
+    card.appendChild(scrollWrap);
+
+    resultsOutput.prepend(card);
+    resultsCard.hidden = false;
   }
 
   function buildKeyValueTable(pairs) {

@@ -43,6 +43,7 @@
           <option value="std">Standard Deviation</option>
           <option value="unique">Unique Value Count + Values</option>
           <option value="filterCount">Count with Filters</option>
+          <option value="query">SQL Query (SELECT / WHERE / ORDER BY / LIMIT)</option>
         </select>
       </div>
 
@@ -51,10 +52,31 @@
         <select id="columnSelect"></select>
       </div>
 
-      <div class="control-group" id="filterControl" hidden>
-        <label>Filter Conditions (all must match)</label>
+      <div class="control-group" id="selectControl" hidden>
+        <label>SELECT columns</label>
+        <div id="selectColumns" class="checkbox-list"></div>
+      </div>
+
+      <div class="control-group" id="whereControl" hidden>
+        <label>WHERE (all conditions must match)</label>
         <div id="filterConditions"></div>
         <button type="button" id="addConditionBtn" class="secondary-btn">+ Add condition</button>
+      </div>
+
+      <div class="control-group" id="orderByControl" hidden>
+        <label>ORDER BY</label>
+        <div class="inline-fields">
+          <select id="orderBySelect"><option value="">(none)</option></select>
+          <select id="orderDirSelect">
+            <option value="ASC">ASC</option>
+            <option value="DESC">DESC</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="control-group" id="limitControl" hidden>
+        <label for="limitInput">LIMIT</label>
+        <input type="number" id="limitInput" min="0" placeholder="e.g. 4" />
       </div>
 
       <button type="button" id="runAnalysisBtn" class="primary-btn">Run</button>
