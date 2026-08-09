@@ -9,16 +9,24 @@
   };
 
   let conditionCounter = 0;
+  let resultCounter = 0;
+  let toastTimeout = null;
 
   const PREVIEW_ROW_LIMIT = 50;
   const UNIQUE_VALUE_DISPLAY_LIMIT = 50;
 
+  const uploadScreen = document.getElementById('uploadScreen');
+  const uploadDropzone = document.getElementById('uploadDropzone');
   const fileInput = document.getElementById('csvFile');
-  const fileNameEl = document.getElementById('fileName');
-  const uploadStatus = document.getElementById('uploadStatus');
+  const uploadError = document.getElementById('uploadError');
+
+  const dataScreen = document.getElementById('dataScreen');
+  const uploadSuccess = document.getElementById('uploadSuccess');
+  const changeFileBtn = document.getElementById('changeFileBtn');
 
   const previewCard = document.getElementById('previewCard');
   const previewInfo = document.getElementById('previewInfo');
+  const sortStatus = document.getElementById('sortStatus');
   const previewTable = document.getElementById('previewTable');
 
   const analysisCard = document.getElementById('analysisCard');
@@ -30,6 +38,7 @@
   const runRowStatsBtn = document.getElementById('runRowStatsBtn');
 
   const sqlFunctionSelect = document.getElementById('sqlFunctionSelect');
+  const sqlInlineRow = document.getElementById('sqlInlineRow');
   const selectControl = document.getElementById('selectControl');
   const selectColumnsContainer = document.getElementById('selectColumns');
   const whereControl = document.getElementById('whereControl');
@@ -51,7 +60,23 @@
   const resultsOutput = document.getElementById('resultsOutput');
   const clearResultsBtn = document.getElementById('clearResultsBtn');
 
+  const toastEl = document.getElementById('toast');
+
   fileInput.addEventListener('change', handleFileSelect);
+  uploadDropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadDropzone.classList.add('dragover');
+  });
+  uploadDropzone.addEventListener('dragleave', () => {
+    uploadDropzone.classList.remove('dragover');
+  });
+  uploadDropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadDropzone.classList.remove('dragover');
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    processFile(file);
+  });
+  changeFileBtn.addEventListener('click', showUploadScreen);
   sqlFunctionSelect.addEventListener('change', updateSqlControlVisibility);
   addConditionBtn.addEventListener('click', () => addFilterCondition());
   runColumnStatsBtn.addEventListener('click', runColumnStats);
@@ -63,10 +88,17 @@
   });
 
   function handleFileSelect(e) {
-    const file = e.target.files[0];
+    processFile(e.target.files[0]);
+  }
+
+  function processFile(file) {
     if (!file) return;
-    fileNameEl.textContent = file.name;
-    uploadStatus.textContent = 'Parsing...';
+
+    if (!/\.csv$/i.test(file.name)) {
+      showUploadError(`"${file.name}" is not a CSV file.`);
+      fileInput.value = '';
+      return;
+    }
 
     Papa.parse(file, {
       header: true,
@@ -74,16 +106,45 @@
       skipEmptyLines: true,
       complete: (results) => {
         if (!results.meta.fields || results.meta.fields.length === 0) {
-          uploadStatus.textContent = 'Could not find any columns in this file.';
+          showUploadError('Could not find any columns in this file.');
           return;
         }
-        loadDataFrame(results.meta.fields, results.data);
-        uploadStatus.textContent = `Loaded "${file.name}" successfully.`;
+        const { columns, rows } = ensureIdColumn(results.meta.fields, results.data);
+        loadDataFrame(columns, rows);
+        showDataScreen(`"${file.name}" loaded successfully.`);
       },
       error: (err) => {
-        uploadStatus.textContent = `Failed to parse file: ${err.message}`;
+        showUploadError(`Failed to parse file: ${err.message}`);
       }
     });
+  }
+
+  function showUploadError(message) {
+    uploadError.textContent = message;
+    uploadError.hidden = false;
+  }
+
+  function showDataScreen(successMessage) {
+    uploadError.hidden = true;
+    uploadSuccess.textContent = successMessage;
+    uploadScreen.hidden = true;
+    dataScreen.hidden = false;
+  }
+
+  function showUploadScreen() {
+    dataScreen.hidden = true;
+    uploadScreen.hidden = false;
+    uploadError.hidden = true;
+    fileInput.value = '';
+  }
+
+  function ensureIdColumn(columns, rows) {
+    const hasId = columns.some((c) => String(c).trim().toLowerCase() === 'id');
+    if (hasId) return { columns, rows };
+
+    const columnsWithId = ['ID', ...columns];
+    const rowsWithId = rows.map((row, i) => ({ ID: i + 1, ...row }));
+    return { columns: columnsWithId, rows: rowsWithId };
   }
 
   function loadDataFrame(columns, rows) {
@@ -127,11 +188,23 @@
     renderPreview();
   }
 
+  function updateSortStatus() {
+    const { column, clickCount } = state.previewSort;
+    if (column && clickCount === 1) {
+      sortStatus.textContent = `Sorted in descending order based on "${column}".`;
+    } else if (column && clickCount === 2) {
+      sortStatus.textContent = `Sorted in ascending order based on "${column}".`;
+    } else {
+      sortStatus.textContent = '';
+    }
+  }
+
   function renderPreview() {
     const totalRows = state.rows.length;
     const totalCols = state.columns.length;
     const shown = Math.min(PREVIEW_ROW_LIMIT, totalRows);
     previewInfo.textContent = `Showing ${shown} of ${totalRows} rows, ${totalCols} columns.`;
+    updateSortStatus();
 
     const thead = document.createElement('thead');
     const headRow = document.createElement('tr');
@@ -139,9 +212,12 @@
       const th = document.createElement('th');
       th.className = 'sortable-th';
       const isSorted = state.previewSort.column === col && state.previewSort.clickCount !== 3;
-      let indicator = '';
-      if (isSorted) indicator = state.previewSort.clickCount === 1 ? ' ▼' : ' ▲';
-      th.textContent = col + indicator;
+      let icon = '⇅';
+      if (isSorted) {
+        icon = state.previewSort.clickCount === 1 ? '▼' : '▲';
+        th.classList.add('sort-active');
+      }
+      th.innerHTML = `${escapeHtml(col)}<span class="sort-icon">${icon}</span>`;
       th.addEventListener('click', () => handlePreviewHeaderClick(col));
       headRow.appendChild(th);
     });
@@ -204,6 +280,17 @@
     whereControl.hidden = !activeFields.includes('where');
     orderByControl.hidden = !activeFields.includes('orderBy');
     limitControl.hidden = !activeFields.includes('limit');
+    sqlInlineRow.classList.toggle(
+      'single-where',
+      !activeFields.includes('orderBy') && !activeFields.includes('limit')
+    );
+  }
+
+  function renumberConditions() {
+    [...filterConditions.querySelectorAll('.filter-condition')].forEach((row, i) => {
+      const label = row.querySelector('.condition-label');
+      if (label) label.textContent = `Condition ${i + 1}:`;
+    });
   }
 
   function addFilterCondition() {
@@ -212,6 +299,10 @@
     const row = document.createElement('div');
     row.className = 'filter-condition';
     row.dataset.id = String(conditionCounter);
+
+    const label = document.createElement('span');
+    label.className = 'condition-label';
+    row.appendChild(label);
 
     const colSelect = document.createElement('select');
     colSelect.className = 'filter-col';
@@ -240,13 +331,17 @@
     removeBtn.type = 'button';
     removeBtn.className = 'remove-condition-btn';
     removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', () => row.remove());
+    removeBtn.addEventListener('click', () => {
+      row.remove();
+      renumberConditions();
+    });
 
     row.appendChild(colSelect);
     row.appendChild(opSelect);
     row.appendChild(valInput);
     row.appendChild(removeBtn);
     filterConditions.appendChild(row);
+    renumberConditions();
   }
 
   function runColumnStats() {
@@ -565,54 +660,46 @@
   }
 
   function appendQueryResult(sqlText, cols, rows, totalMatched) {
-    const card = document.createElement('div');
-    card.className = 'result-item';
+    createResultCard('SQL Query', (body) => {
+      const sqlEl = document.createElement('pre');
+      sqlEl.className = 'sql-text';
+      sqlEl.textContent = sqlText;
+      body.appendChild(sqlEl);
 
-    const heading = document.createElement('h3');
-    heading.textContent = 'SQL Query';
-    card.appendChild(heading);
+      const info = document.createElement('p');
+      info.className = 'status-text';
+      info.textContent = `${rows.length} row(s) returned (${totalMatched} matched before LIMIT).`;
+      body.appendChild(info);
 
-    const sqlEl = document.createElement('pre');
-    sqlEl.className = 'sql-text';
-    sqlEl.textContent = sqlText;
-    card.appendChild(sqlEl);
+      const scrollWrap = document.createElement('div');
+      scrollWrap.className = 'table-scroll';
+      const table = document.createElement('table');
 
-    const info = document.createElement('p');
-    info.className = 'status-text';
-    info.textContent = `${rows.length} row(s) returned (${totalMatched} matched before LIMIT).`;
-    card.appendChild(info);
-
-    const scrollWrap = document.createElement('div');
-    scrollWrap.className = 'table-scroll';
-    const table = document.createElement('table');
-
-    const thead = document.createElement('thead');
-    const headRow = document.createElement('tr');
-    cols.forEach((col) => {
-      const th = document.createElement('th');
-      th.textContent = col;
-      headRow.appendChild(th);
-    });
-    thead.appendChild(headRow);
-
-    const tbody = document.createElement('tbody');
-    rows.forEach((row) => {
-      const tr = document.createElement('tr');
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
       cols.forEach((col) => {
-        const td = document.createElement('td');
-        const val = row[col];
-        td.textContent = val === null || val === undefined ? '' : String(val);
-        tr.appendChild(td);
+        const th = document.createElement('th');
+        th.textContent = col;
+        headRow.appendChild(th);
       });
-      tbody.appendChild(tr);
-    });
-    table.appendChild(thead);
-    table.appendChild(tbody);
-    scrollWrap.appendChild(table);
-    card.appendChild(scrollWrap);
+      thead.appendChild(headRow);
 
-    resultsOutput.prepend(card);
-    resultsCard.hidden = false;
+      const tbody = document.createElement('tbody');
+      rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        cols.forEach((col) => {
+          const td = document.createElement('td');
+          const val = row[col];
+          td.textContent = val === null || val === undefined ? '' : String(val);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(thead);
+      table.appendChild(tbody);
+      scrollWrap.appendChild(table);
+      body.appendChild(scrollWrap);
+    });
   }
 
   function buildKeyValueTable(pairs) {
@@ -622,12 +709,56 @@
     return `<table class="kv-table">${rowsHtml}</table>`;
   }
 
-  function appendResult(title, html) {
+  function createResultCard(operationLabel, buildBody) {
+    resultCounter += 1;
+
     const card = document.createElement('div');
     card.className = 'result-item';
-    card.innerHTML = `<h3>${escapeHtml(title)}</h3>${html}`;
+
+    const header = document.createElement('div');
+    header.className = 'result-item-header';
+
+    const heading = document.createElement('h3');
+    heading.textContent = `Result ${resultCounter} — ${operationLabel}`;
+    header.appendChild(heading);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'result-delete-btn';
+    deleteBtn.setAttribute('aria-label', 'Delete this result');
+    deleteBtn.textContent = '×';
+    deleteBtn.addEventListener('click', () => {
+      const confirmed = window.confirm(
+        "Delete this result? This only removes it from your current browser view — if you want it back, you'll need to run the same operation again."
+      );
+      if (confirmed) card.remove();
+    });
+    header.appendChild(deleteBtn);
+
+    card.appendChild(header);
+
+    const body = document.createElement('div');
+    buildBody(body);
+    card.appendChild(body);
+
     resultsOutput.prepend(card);
     resultsCard.hidden = false;
+    showToast(`Result ${resultCounter} added to the results section at the bottom of the page.`);
+  }
+
+  function appendResult(title, html) {
+    createResultCard(title, (body) => {
+      body.innerHTML = html;
+    });
+  }
+
+  function showToast(message) {
+    clearTimeout(toastTimeout);
+    toastEl.textContent = message;
+    toastEl.classList.add('visible');
+    toastTimeout = setTimeout(() => {
+      toastEl.classList.remove('visible');
+    }, 4000);
   }
 
   function escapeHtml(str) {
