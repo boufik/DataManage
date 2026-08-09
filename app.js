@@ -83,6 +83,10 @@
   runRowStatsBtn.addEventListener('click', runRowStats);
   runSqlBtn.addEventListener('click', runSqlOperation);
   clearResultsBtn.addEventListener('click', () => {
+    const confirmed = window.confirm(
+      "Delete all results? This only removes them from your current browser view — if you want them back, you'll need to re-run each operation again."
+    );
+    if (!confirmed) return;
     resultsOutput.innerHTML = '';
     resultsCard.hidden = true;
   });
@@ -195,7 +199,7 @@
     } else if (column && clickCount === 2) {
       sortStatus.textContent = `Sorted in ascending order based on "${column}".`;
     } else {
-      sortStatus.textContent = '';
+      sortStatus.textContent = ' ';
     }
   }
 
@@ -388,7 +392,7 @@
     const col = columnSelect.value;
     const values = getColumnValues(col);
     if (values.length === 0) {
-      appendResult(`Mode — ${col}`, '<p>No data available in this column.</p>');
+      showToast(`No data available in column "${col}".`, 'error');
       return;
     }
 
@@ -411,7 +415,7 @@
       ['Frequency', String(maxCount)],
       ['Total non-empty values', String(values.length)]
     ];
-    appendResult(`Mode — ${col}`, buildKeyValueTable(rows));
+    appendResult(`Mode for column "${col}"`, buildKeyValueTable(rows));
   }
 
   function toNumericValues(col) {
@@ -441,13 +445,13 @@
     const col = columnSelect.value;
 
     if (state.types[col] !== 'numeric') {
-      appendResult(`${label} — ${col}`, '<p>This column is not numeric, so this function does not apply.</p>');
+      showToast(`"${col}" is not a numeric column, so ${label} does not apply.`, 'error');
       return;
     }
 
     const values = toNumericValues(col);
     if (values.length === 0) {
-      appendResult(`${label} — ${col}`, '<p>No numeric data available in this column.</p>');
+      showToast(`No numeric data available in column "${col}".`, 'error');
       return;
     }
 
@@ -461,7 +465,7 @@
       [label, Number.isNaN(result) ? 'N/A (need at least 2 values)' : result.toFixed(4)],
       ['Values used', String(values.length)]
     ];
-    appendResult(`${label} — ${col}`, buildKeyValueTable(rows));
+    appendResult(`${label} for column "${col}"`, buildKeyValueTable(rows));
   }
 
   function runUniqueAnalysis() {
@@ -478,7 +482,7 @@
         : 'Values';
       extra = `<p class="unique-values"><strong>${label}:</strong> ${shown.map(escapeHtml).join(', ')}</p>`;
     }
-    appendResult(`Unique Values — ${col}`, buildKeyValueTable(rows) + extra);
+    appendResult(`Unique Values for column "${col}"`, buildKeyValueTable(rows) + extra);
   }
 
   function formatNumber(n) {
@@ -493,7 +497,7 @@
     const rawIndex = rowIndexInput.value.trim();
     const rowNumber = parseInt(rawIndex, 10);
     if (rawIndex === '' || Number.isNaN(rowNumber) || rowNumber < 1 || rowNumber > totalRows) {
-      appendResult('Stats across row', `<p>Enter a row number between 1 and ${totalRows}.</p>`);
+      showToast(`Enter a row number between 1 and ${totalRows}.`, 'error');
       return;
     }
 
@@ -501,7 +505,7 @@
     const numericCols = state.columns.filter((col) => state.types[col] === 'numeric');
 
     if (numericCols.length === 0) {
-      appendResult(`Row #${rowNumber} — Stats across row`, '<p>No numeric columns available to compare.</p>');
+      showToast('No numeric columns available to compare for this row.', 'error');
       return;
     }
 
@@ -543,7 +547,7 @@
     const tableRows = columnStats.map((c) => `<tr><td>${escapeHtml(c.col)}</td><td>${escapeHtml(String(c.value))}</td><td>${escapeHtml(String(c.avg))}</td><td>${escapeHtml(c.percentile)}</td><td>${escapeHtml(c.assessment)}</td></tr>`).join('');
     const tableHtml = `<div class="table-scroll"><table><thead><tr><th>Column</th><th>Value</th><th>Average</th><th>Percentile</th><th>Assessment</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
 
-    appendResult(`Row #${rowNumber} — Stats across row`, summaryHtml + tableHtml);
+    appendResult(`Stats across row ${rowNumber}`, summaryHtml + tableHtml);
   }
 
   function matchesCondition(row, col, op, rawValue) {
@@ -622,7 +626,7 @@
       .map((cb) => cb.value);
 
     if (selectedCols.length === 0) {
-      appendResult('SQL Query', '<p>Select at least one column in SELECT.</p>');
+      showToast('Select at least one column in SELECT before running the query.', 'error');
       return;
     }
 
@@ -719,7 +723,7 @@
     header.className = 'result-item-header';
 
     const heading = document.createElement('h3');
-    heading.textContent = `Result ${resultCounter} — ${operationLabel}`;
+    heading.textContent = `Result ${resultCounter}: ${operationLabel}`;
     header.appendChild(heading);
 
     const deleteBtn = document.createElement('button');
@@ -752,9 +756,10 @@
     });
   }
 
-  function showToast(message) {
+  function showToast(message, variant = 'success') {
     clearTimeout(toastTimeout);
     toastEl.textContent = message;
+    toastEl.classList.toggle('toast--error', variant === 'error');
     toastEl.classList.add('visible');
     toastTimeout = setTimeout(() => {
       toastEl.classList.remove('visible');
