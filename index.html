@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CSV Data Analyzer</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="./style.css">
+<link rel="icon" type="image/png" href="./Images/csv_logo.png">
 </head>
 <body>
 <header class="site-header">
@@ -19,8 +20,8 @@
       <label for="csvFile" class="file-label">Choose CSV file</label>
       <input type="file" id="csvFile" accept=".csv" />
       <span id="fileName" class="file-name">No file selected</span>
+      <span id="uploadStatus" class="status-text"></span>
     </div>
-    <p id="uploadStatus" class="status-text"></p>
   </section>
 
   <section class="card" id="previewCard" hidden>
@@ -33,23 +34,49 @@
 
   <section class="card" id="analysisCard" hidden>
     <h2>3. Run Analysis</h2>
-    <div class="analysis-controls">
+    <div class="analysis-grid">
+      <div class="analysis-box" id="columnStatsBox">
+        <h3>Stats across column</h3>
+        <div class="control-group">
+          <label for="columnFunctionSelect">Function</label>
+          <select id="columnFunctionSelect">
+            <option value="mode">Mode (most frequent value)</option>
+            <option value="mean">Mean</option>
+            <option value="median">Median</option>
+            <option value="std">Standard Deviation</option>
+            <option value="sum">Sum</option>
+            <option value="unique">Unique Value Count + Values</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label for="columnSelect">Column</label>
+          <select id="columnSelect"></select>
+        </div>
+
+        <button type="button" id="runColumnStatsBtn" class="primary-btn">Run</button>
+      </div>
+
+      <div class="analysis-box" id="rowStatsBox">
+        <h3>Stats across row</h3>
+        <div class="control-group">
+          <label for="rowIndexInput">Row number</label>
+          <input type="number" id="rowIndexInput" min="1" placeholder="e.g. 1" />
+        </div>
+        <p class="status-text">Compares this row's numeric values against the same columns across all other rows.</p>
+
+        <button type="button" id="runRowStatsBtn" class="primary-btn">Run</button>
+      </div>
+    </div>
+
+    <div class="analysis-box analysis-box--full" id="sqlOpsBox">
+      <h3>SQL operations</h3>
       <div class="control-group">
-        <label for="functionSelect">Function</label>
-        <select id="functionSelect">
-          <option value="mode">Mode (most frequent value)</option>
-          <option value="mean">Mean</option>
-          <option value="median">Median</option>
-          <option value="std">Standard Deviation</option>
-          <option value="unique">Unique Value Count + Values</option>
+        <label for="sqlFunctionSelect">Function</label>
+        <select id="sqlFunctionSelect">
           <option value="filterCount">Count with Filters</option>
           <option value="query">SQL Query (SELECT / WHERE / ORDER BY / LIMIT)</option>
         </select>
-      </div>
-
-      <div class="control-group" id="columnControl">
-        <label for="columnSelect">Column</label>
-        <select id="columnSelect"></select>
       </div>
 
       <div class="control-group" id="selectControl" hidden>
@@ -79,7 +106,7 @@
         <input type="number" id="limitInput" min="0" placeholder="e.g. 4" />
       </div>
 
-      <button type="button" id="runAnalysisBtn" class="primary-btn">Run</button>
+      <button type="button" id="runSqlBtn" class="primary-btn">Run</button>
     </div>
   </section>
 
@@ -91,10 +118,6 @@
     <div id="resultsOutput"></div>
   </section>
 </main>
-
-<footer class="site-footer">
-  <p>Runs entirely in your browser &mdash; no data is uploaded to a server.</p>
-</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="app.js"></script>

@@ -4,7 +4,8 @@
   const state = {
     columns: [],
     rows: [],
-    types: {} // colName -> 'numeric' | 'text'
+    types: {}, // colName -> 'numeric' | 'text'
+    previewSort: { column: null, clickCount: 0 } // clickCount: 1=desc, 2=asc, 3=original order
   };
 
   let conditionCounter = 0;
@@ -21,9 +22,14 @@
   const previewTable = document.getElementById('previewTable');
 
   const analysisCard = document.getElementById('analysisCard');
-  const functionSelect = document.getElementById('functionSelect');
-  const columnControl = document.getElementById('columnControl');
+  const columnFunctionSelect = document.getElementById('columnFunctionSelect');
   const columnSelect = document.getElementById('columnSelect');
+  const runColumnStatsBtn = document.getElementById('runColumnStatsBtn');
+
+  const rowIndexInput = document.getElementById('rowIndexInput');
+  const runRowStatsBtn = document.getElementById('runRowStatsBtn');
+
+  const sqlFunctionSelect = document.getElementById('sqlFunctionSelect');
   const selectControl = document.getElementById('selectControl');
   const selectColumnsContainer = document.getElementById('selectColumns');
   const whereControl = document.getElementById('whereControl');
@@ -34,14 +40,9 @@
   const orderDirSelect = document.getElementById('orderDirSelect');
   const limitControl = document.getElementById('limitControl');
   const limitInput = document.getElementById('limitInput');
-  const runAnalysisBtn = document.getElementById('runAnalysisBtn');
+  const runSqlBtn = document.getElementById('runSqlBtn');
 
-  const FUNCTION_FIELDS = {
-    mode: ['column'],
-    mean: ['column'],
-    median: ['column'],
-    std: ['column'],
-    unique: ['column'],
+  const SQL_FUNCTION_FIELDS = {
     filterCount: ['where'],
     query: ['select', 'where', 'orderBy', 'limit']
   };
@@ -51,9 +52,11 @@
   const clearResultsBtn = document.getElementById('clearResultsBtn');
 
   fileInput.addEventListener('change', handleFileSelect);
-  functionSelect.addEventListener('change', updateControlVisibility);
+  sqlFunctionSelect.addEventListener('change', updateSqlControlVisibility);
   addConditionBtn.addEventListener('click', () => addFilterCondition());
-  runAnalysisBtn.addEventListener('click', runAnalysis);
+  runColumnStatsBtn.addEventListener('click', runColumnStats);
+  runRowStatsBtn.addEventListener('click', runRowStats);
+  runSqlBtn.addEventListener('click', runSqlOperation);
   clearResultsBtn.addEventListener('click', () => {
     resultsOutput.innerHTML = '';
     resultsCard.hidden = true;
@@ -87,6 +90,7 @@
     state.columns = columns;
     state.rows = rows;
     state.types = {};
+    state.previewSort = { column: null, clickCount: 0 };
     columns.forEach((col) => {
       state.types[col] = inferColumnType(col);
     });
@@ -94,7 +98,7 @@
     renderPreview();
     populateColumnSelects();
     analysisCard.hidden = false;
-    updateControlVisibility();
+    updateSqlControlVisibility();
   }
 
   function inferColumnType(col) {
@@ -104,6 +108,23 @@
     if (values.length === 0) return 'text';
     const numericCount = values.filter((v) => typeof v === 'number' && !Number.isNaN(v)).length;
     return numericCount / values.length >= 0.9 ? 'numeric' : 'text';
+  }
+
+  function getPreviewRows() {
+    const { column, clickCount } = state.previewSort;
+    if (!column || clickCount === 3) return state.rows;
+    const dirMultiplier = clickCount === 1 ? -1 : 1; // 1st click = desc, 2nd click = asc
+    return [...state.rows].sort((a, b) => compareValues(a[column], b[column]) * dirMultiplier);
+  }
+
+  function handlePreviewHeaderClick(col) {
+    if (state.previewSort.column !== col) {
+      state.previewSort.column = col;
+      state.previewSort.clickCount = 1;
+    } else {
+      state.previewSort.clickCount = (state.previewSort.clickCount % 3) + 1;
+    }
+    renderPreview();
   }
 
   function renderPreview() {
@@ -116,13 +137,18 @@
     const headRow = document.createElement('tr');
     state.columns.forEach((col) => {
       const th = document.createElement('th');
-      th.textContent = col;
+      th.className = 'sortable-th';
+      const isSorted = state.previewSort.column === col && state.previewSort.clickCount !== 3;
+      let indicator = '';
+      if (isSorted) indicator = state.previewSort.clickCount === 1 ? ' ▼' : ' ▲';
+      th.textContent = col + indicator;
+      th.addEventListener('click', () => handlePreviewHeaderClick(col));
       headRow.appendChild(th);
     });
     thead.appendChild(headRow);
 
     const tbody = document.createElement('tbody');
-    state.rows.slice(0, PREVIEW_ROW_LIMIT).forEach((row) => {
+    getPreviewRows().slice(0, PREVIEW_ROW_LIMIT).forEach((row) => {
       const tr = document.createElement('tr');
       state.columns.forEach((col) => {
         const td = document.createElement('td');
@@ -171,10 +197,9 @@
     addFilterCondition();
   }
 
-  function updateControlVisibility() {
-    const fn = functionSelect.value;
-    const activeFields = FUNCTION_FIELDS[fn] || [];
-    columnControl.hidden = !activeFields.includes('column');
+  function updateSqlControlVisibility() {
+    const fn = sqlFunctionSelect.value;
+    const activeFields = SQL_FUNCTION_FIELDS[fn] || [];
     selectControl.hidden = !activeFields.includes('select');
     whereControl.hidden = !activeFields.includes('where');
     orderByControl.hidden = !activeFields.includes('orderBy');
@@ -224,8 +249,8 @@
     filterConditions.appendChild(row);
   }
 
-  function runAnalysis() {
-    const fn = functionSelect.value;
+  function runColumnStats() {
+    const fn = columnFunctionSelect.value;
     if (state.columns.length === 0) return;
 
     switch (fn) {
@@ -233,7 +258,17 @@
       case 'mean': runNumericAggregate('mean', 'Mean'); break;
       case 'median': runNumericAggregate('median', 'Median'); break;
       case 'std': runNumericAggregate('std', 'Standard Deviation'); break;
+      case 'sum': runNumericAggregate('sum', 'Sum'); break;
       case 'unique': runUniqueAnalysis(); break;
+      default: break;
+    }
+  }
+
+  function runSqlOperation() {
+    const fn = sqlFunctionSelect.value;
+    if (state.columns.length === 0) return;
+
+    switch (fn) {
       case 'filterCount': runFilterCountAnalysis(); break;
       case 'query': runQueryAnalysis(); break;
       default: break;
@@ -324,6 +359,7 @@
     let result;
     if (kind === 'mean') result = mean(values);
     else if (kind === 'median') result = median(values);
+    else if (kind === 'sum') result = values.reduce((a, b) => a + b, 0);
     else result = sampleStd(values);
 
     const rows = [
@@ -348,6 +384,71 @@
       extra = `<p class="unique-values"><strong>${label}:</strong> ${shown.map(escapeHtml).join(', ')}</p>`;
     }
     appendResult(`Unique Values — ${col}`, buildKeyValueTable(rows) + extra);
+  }
+
+  function formatNumber(n) {
+    if (!Number.isFinite(n)) return 'N/A';
+    return Number(n.toFixed(4)).toString();
+  }
+
+  function runRowStats() {
+    const totalRows = state.rows.length;
+    if (totalRows === 0) return;
+
+    const rawIndex = rowIndexInput.value.trim();
+    const rowNumber = parseInt(rawIndex, 10);
+    if (rawIndex === '' || Number.isNaN(rowNumber) || rowNumber < 1 || rowNumber > totalRows) {
+      appendResult('Stats across row', `<p>Enter a row number between 1 and ${totalRows}.</p>`);
+      return;
+    }
+
+    const row = state.rows[rowNumber - 1];
+    const numericCols = state.columns.filter((col) => state.types[col] === 'numeric');
+
+    if (numericCols.length === 0) {
+      appendResult(`Row #${rowNumber} — Stats across row`, '<p>No numeric columns available to compare.</p>');
+      return;
+    }
+
+    const columnStats = numericCols.map((col) => {
+      const cellValue = row[col];
+      const thisValue = typeof cellValue === 'number' ? cellValue : parseFloat(cellValue);
+      const allValues = toNumericValues(col);
+
+      if (Number.isNaN(thisValue) || allValues.length === 0) {
+        return { col, value: 'N/A', avg: 'N/A', percentile: 'N/A', percentileValue: null, assessment: 'No numeric value in this row' };
+      }
+
+      const avg = mean(allValues);
+      let assessment = 'Equal to average';
+      if (thisValue > avg) assessment = 'Above average (higher)';
+      else if (thisValue < avg) assessment = 'Below average (lower)';
+
+      let percentile = 'N/A';
+      let percentileValue = null;
+      if (allValues.length > 1) {
+        const countLess = allValues.filter((v) => v < thisValue).length;
+        const countEqual = allValues.filter((v) => v === thisValue).length;
+        percentileValue = ((countLess + 0.5 * countEqual) / allValues.length) * 100;
+        percentile = `${percentileValue.toFixed(1)}th`;
+      }
+
+      return { col, value: formatNumber(thisValue), avg: formatNumber(avg), percentile, percentileValue, assessment };
+    });
+
+    const rankable = columnStats.filter((c) => typeof c.percentileValue === 'number');
+    let summaryHtml = '';
+    if (rankable.length > 0) {
+      const bestCols = [...rankable].sort((a, b) => b.percentileValue - a.percentileValue).slice(0, 3);
+      const worstCols = [...rankable].sort((a, b) => a.percentileValue - b.percentileValue).slice(0, 3);
+      summaryHtml = `<p><strong>Relatively best columns:</strong> ${bestCols.map((c) => `${escapeHtml(c.col)} (${c.percentile} percentile)`).join(', ')}</p>` +
+        `<p><strong>Relatively worst columns:</strong> ${worstCols.map((c) => `${escapeHtml(c.col)} (${c.percentile} percentile)`).join(', ')}</p>`;
+    }
+
+    const tableRows = columnStats.map((c) => `<tr><td>${escapeHtml(c.col)}</td><td>${escapeHtml(String(c.value))}</td><td>${escapeHtml(String(c.avg))}</td><td>${escapeHtml(c.percentile)}</td><td>${escapeHtml(c.assessment)}</td></tr>`).join('');
+    const tableHtml = `<div class="table-scroll"><table><thead><tr><th>Column</th><th>Value</th><th>Average</th><th>Percentile</th><th>Assessment</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+
+    appendResult(`Row #${rowNumber} — Stats across row`, summaryHtml + tableHtml);
   }
 
   function matchesCondition(row, col, op, rawValue) {

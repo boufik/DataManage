@@ -50,7 +50,8 @@ body {
 }
 
 main {
-  max-width: 960px;
+  max-width: 80vw;
+  min-width: 320px;
   margin: 0 auto;
   padding: 0 1.5rem 3rem;
   display: flex;
@@ -75,11 +76,23 @@ main {
   font-size: 0.9rem;
 }
 
+#uploadCard {
+  padding: 1rem 1.5rem;
+}
+
+#uploadCard h2 {
+  margin-bottom: 0.75rem;
+}
+
 .upload-controls {
   display: flex;
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+#uploadStatus {
+  margin: 0;
 }
 
 .file-label {
@@ -133,10 +146,43 @@ thead th {
   border-bottom: 2px solid var(--border);
 }
 
-.analysis-controls {
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable-th:hover {
+  color: var(--accent);
+}
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 700px) {
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analysis-box {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+}
+
+.analysis-box h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.analysis-box--full {
+  margin-top: 1.5rem;
 }
 
 .control-group {
