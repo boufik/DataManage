@@ -609,6 +609,24 @@ select:focus, input[type="text"]:focus, input[type="number"]:focus {
   word-break: break-word;
 }
 
+.assessment-above {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.assessment-below {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.row-best-in {
+  color: var(--success);
+}
+
+.row-worst-in {
+  color: var(--danger);
+}
+
 /* ----- Toast ----- */
 
 .toast {

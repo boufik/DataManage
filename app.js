@@ -502,26 +502,44 @@
     }
 
     const row = state.rows[rowNumber - 1];
-    const numericCols = state.columns.filter((col) => state.types[col] === 'numeric');
+    const idCol = state.columns.find((col) => String(col).trim().toLowerCase() === 'id');
+    const numericCols = state.columns.filter(
+      (col) => state.types[col] === 'numeric' && String(col).trim().toLowerCase() !== 'id'
+    );
 
     if (numericCols.length === 0) {
       showToast('No numeric columns available to compare for this row.', 'error');
       return;
     }
 
+    const bestInEntries = [];
+    const worstInEntries = [];
+
     const columnStats = numericCols.map((col) => {
       const cellValue = row[col];
       const thisValue = typeof cellValue === 'number' ? cellValue : parseFloat(cellValue);
-      const allValues = toNumericValues(col);
+      const valuePairs = state.rows
+        .map((r) => ({ id: r[idCol], value: typeof r[col] === 'number' ? r[col] : parseFloat(r[col]) }))
+        .filter((p) => !Number.isNaN(p.value));
+      const allValues = valuePairs.map((p) => p.value);
 
       if (Number.isNaN(thisValue) || allValues.length === 0) {
-        return { col, value: 'N/A', avg: 'N/A', percentile: 'N/A', percentileValue: null, assessment: 'No numeric value in this row' };
+        return {
+          col, value: 'N/A', avg: 'N/A', percentile: 'N/A', percentileValue: null,
+          assessment: 'No numeric value in this row', assessmentClass: ''
+        };
       }
 
       const avg = mean(allValues);
       let assessment = 'Equal to average';
-      if (thisValue > avg) assessment = 'Above average (higher)';
-      else if (thisValue < avg) assessment = 'Below average (lower)';
+      let assessmentClass = '';
+      if (thisValue > avg) {
+        assessment = 'ABOVE average';
+        assessmentClass = 'assessment-above';
+      } else if (thisValue < avg) {
+        assessment = 'BELOW average';
+        assessmentClass = 'assessment-below';
+      }
 
       let percentile = 'N/A';
       let percentileValue = null;
@@ -532,7 +550,21 @@
         percentile = `${percentileValue.toFixed(1)}th`;
       }
 
-      return { col, value: formatNumber(thisValue), avg: formatNumber(avg), percentile, percentileValue, assessment };
+      const colMax = Math.max(...allValues);
+      const colMin = Math.min(...allValues);
+      if (thisValue === colMax) {
+        const ties = valuePairs.filter((p) => p.value === colMax && p.id !== row[idCol]);
+        bestInEntries.push({ col, ties });
+      }
+      if (thisValue === colMin) {
+        const ties = valuePairs.filter((p) => p.value === colMin && p.id !== row[idCol]);
+        worstInEntries.push({ col, ties });
+      }
+
+      return {
+        col, value: formatNumber(thisValue), avg: formatNumber(avg), percentile, percentileValue,
+        assessment, assessmentClass
+      };
     });
 
     const rankable = columnStats.filter((c) => typeof c.percentileValue === 'number');
@@ -540,14 +572,42 @@
     if (rankable.length > 0) {
       const bestCols = [...rankable].sort((a, b) => b.percentileValue - a.percentileValue).slice(0, 3);
       const worstCols = [...rankable].sort((a, b) => a.percentileValue - b.percentileValue).slice(0, 3);
-      summaryHtml = `<p><strong>Relatively best columns:</strong> ${bestCols.map((c) => `${escapeHtml(c.col)} (${c.percentile} percentile)`).join(', ')}</p>` +
-        `<p><strong>Relatively worst columns:</strong> ${worstCols.map((c) => `${escapeHtml(c.col)} (${c.percentile} percentile)`).join(', ')}</p>`;
+      summaryHtml = `<p><strong>Best columns:</strong> ${bestCols.map((c) => `"${escapeHtml(c.col)}" (${c.percentile} percentile)`).join(', ')}</p>` +
+        `<p><strong>Worst columns:</strong> ${worstCols.map((c) => `"${escapeHtml(c.col)}" (${c.percentile} percentile)`).join(', ')}</p>`;
     }
 
-    const tableRows = columnStats.map((c) => `<tr><td>${escapeHtml(c.col)}</td><td>${escapeHtml(String(c.value))}</td><td>${escapeHtml(String(c.avg))}</td><td>${escapeHtml(c.percentile)}</td><td>${escapeHtml(c.assessment)}</td></tr>`).join('');
-    const tableHtml = `<div class="table-scroll"><table><thead><tr><th>Column</th><th>Value</th><th>Average</th><th>Percentile</th><th>Assessment</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+    const formatBestWorstEntry = (entry) => {
+      const tiesText = entry.ties.length
+        ? ` (tied with ${entry.ties.map((t) => `ID ${escapeHtml(String(t.id))}`).join(', ')})`
+        : '';
+      return `"${escapeHtml(entry.col)}"${tiesText}`;
+    };
 
-    appendResult(`Stats across row ${rowNumber}`, summaryHtml + tableHtml);
+    let bestInHtml = '';
+    if (bestInEntries.length > 0) {
+      bestInHtml = `<p class="row-best-in"><strong>The best in:</strong> ${bestInEntries.map(formatBestWorstEntry).join(', ')}</p>`;
+    }
+
+    let worstInHtml = '';
+    if (worstInEntries.length > 0) {
+      worstInHtml = `<p class="row-worst-in"><strong>The worst in:</strong> ${worstInEntries.map(formatBestWorstEntry).join(', ')}</p>`;
+    }
+
+    const tableRows = columnStats.map((c) => {
+      const percentileStyle = typeof c.percentileValue === 'number'
+        ? ` style="color: ${percentileColor(c.percentileValue)}; font-weight: 600;"`
+        : '';
+      return `<tr><td>${escapeHtml(c.col)}</td><td>${escapeHtml(String(c.value))}</td><td>${escapeHtml(String(c.avg))}</td><td class="${c.assessmentClass}">${escapeHtml(c.assessment)}</td><td${percentileStyle}>${escapeHtml(c.percentile)}</td></tr>`;
+    }).join('');
+    const tableHtml = `<div class="table-scroll"><table><thead><tr><th>Column</th><th>Value</th><th>Average</th><th>Assessment</th><th>Percentile</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+
+    appendResult(`Stats across row ${rowNumber}`, summaryHtml + bestInHtml + worstInHtml + tableHtml);
+  }
+
+  function percentileColor(percentileValue) {
+    const clamped = Math.max(0, Math.min(100, percentileValue));
+    const hue = clamped * 1.2; // 0 = red, 60 = orange/yellow, 120 = green
+    return `hsl(${hue}, 70%, 42%)`;
   }
 
   function matchesCondition(row, col, op, rawValue) {
