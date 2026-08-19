@@ -331,6 +331,14 @@ thead th {
   gap: 0.75rem;
 }
 
+.where-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
 .analysis-box-header h3 {
   margin: 0;
   font-size: 1rem;
@@ -363,6 +371,13 @@ thead th {
 
 .control-group--inline select {
   flex: 1;
+}
+
+.column-type-label {
+  flex-shrink: 0;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.9rem;
+  color: var(--text-muted);
 }
 
 .control-group label {
@@ -399,6 +414,10 @@ select:hover {
   border-color: var(--accent);
 }
 
+input::placeholder {
+  color: var(--text-muted);
+}
+
 select:focus, input[type="text"]:focus, input[type="number"]:focus {
   outline: none;
   border-color: var(--accent);
@@ -425,35 +444,96 @@ select:focus, input[type="text"]:focus, input[type="number"]:focus {
 .checkbox-item {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   font-size: 0.85rem;
   font-weight: 400;
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  min-width: 1.15rem;
+  margin: 0;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease, box-shadow 0.15s ease;
+}
+
+input[type="checkbox"]:hover {
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 0.32rem;
+  top: 0.13rem;
+  width: 0.28rem;
+  height: 0.55rem;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:active {
+  transform: scale(0.88);
+}
+
+input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.25);
 }
 
 .inline-fields {
   display: flex;
   gap: 0.6rem;
+  align-items: flex-end;
 }
 
-.sql-inline-row {
+.direction-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sub-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.sql-fields-row {
   display: grid;
-  grid-template-columns: 1fr 1.4fr 1fr;
+  grid-template-columns: 1.4fr 1.2fr 1fr;
   gap: 1rem;
   align-items: start;
 }
 
-.sql-inline-row.single-where #whereControl {
-  grid-column: 1 / -1;
+.control-group-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
 }
 
 @media (max-width: 900px) {
-  .sql-inline-row {
+  .sql-fields-row {
     grid-template-columns: 1fr;
   }
+}
 
-  .sql-inline-row.single-where #whereControl {
-    grid-column: auto;
-  }
+.control-group--disabled {
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .sql-text {
@@ -468,11 +548,23 @@ select:focus, input[type="text"]:focus, input[type="number"]:focus {
   white-space: pre;
 }
 
+#filterConditions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 700px) {
+  #filterConditions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .filter-condition {
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  margin-bottom: 0.5rem;
   flex-wrap: wrap;
   background: var(--card-bg);
   border: 1px solid var(--border);

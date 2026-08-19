@@ -32,13 +32,13 @@
   const analysisCard = document.getElementById('analysisCard');
   const columnFunctionSelect = document.getElementById('columnFunctionSelect');
   const columnSelect = document.getElementById('columnSelect');
+  const columnTypeLabel = document.getElementById('columnTypeLabel');
   const runColumnStatsBtn = document.getElementById('runColumnStatsBtn');
 
   const rowIndexInput = document.getElementById('rowIndexInput');
   const runRowStatsBtn = document.getElementById('runRowStatsBtn');
 
   const sqlFunctionSelect = document.getElementById('sqlFunctionSelect');
-  const sqlInlineRow = document.getElementById('sqlInlineRow');
   const selectControl = document.getElementById('selectControl');
   const selectColumnsContainer = document.getElementById('selectColumns');
   const whereControl = document.getElementById('whereControl');
@@ -80,6 +80,7 @@
   sqlFunctionSelect.addEventListener('change', updateSqlControlVisibility);
   addConditionBtn.addEventListener('click', () => addFilterCondition());
   runColumnStatsBtn.addEventListener('click', runColumnStats);
+  columnSelect.addEventListener('change', updateColumnTypeLabel);
   runRowStatsBtn.addEventListener('click', runRowStats);
   runSqlBtn.addEventListener('click', runSqlOperation);
   clearResultsBtn.addEventListener('click', () => {
@@ -88,7 +89,6 @@
     );
     if (!confirmed) return;
     resultsOutput.innerHTML = '';
-    resultsCard.hidden = true;
   });
 
   function handleFileSelect(e) {
@@ -162,7 +162,10 @@
 
     renderPreview();
     populateColumnSelects();
+    rowIndexInput.value = '';
+    rowIndexInput.placeholder = `1-${state.rows.length}`;
     analysisCard.hidden = false;
+    resultsCard.hidden = false;
     updateSqlControlVisibility();
   }
 
@@ -253,7 +256,7 @@
     state.columns.forEach((col) => {
       const opt = document.createElement('option');
       opt.value = col;
-      opt.textContent = `${col} (${state.types[col]})`;
+      opt.textContent = col;
       columnSelect.appendChild(opt);
 
       const orderOpt = document.createElement('option');
@@ -266,28 +269,39 @@
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.value = col;
-      checkbox.checked = true;
       checkboxLabel.appendChild(checkbox);
       checkboxLabel.appendChild(document.createTextNode(col));
       selectColumnsContainer.appendChild(checkboxLabel);
     });
 
+    if (state.columns.length) orderBySelect.value = state.columns[0];
+
+    updateColumnTypeLabel();
+
     filterConditions.innerHTML = '';
     conditionCounter = 0;
-    addFilterCondition();
+  }
+
+  function updateColumnTypeLabel() {
+    const col = columnSelect.value;
+    columnTypeLabel.textContent = col ? `(${state.types[col]})` : '';
+  }
+
+  function setControlDisabled(control, inputs, disabled) {
+    control.classList.toggle('control-group--disabled', disabled);
+    inputs.forEach((input) => { input.disabled = disabled; });
   }
 
   function updateSqlControlVisibility() {
     const fn = sqlFunctionSelect.value;
     const activeFields = SQL_FUNCTION_FIELDS[fn] || [];
-    selectControl.hidden = !activeFields.includes('select');
-    whereControl.hidden = !activeFields.includes('where');
-    orderByControl.hidden = !activeFields.includes('orderBy');
-    limitControl.hidden = !activeFields.includes('limit');
-    sqlInlineRow.classList.toggle(
-      'single-where',
-      !activeFields.includes('orderBy') && !activeFields.includes('limit')
+    setControlDisabled(
+      selectControl,
+      [...selectColumnsContainer.querySelectorAll('input[type="checkbox"]')],
+      !activeFields.includes('select')
     );
+    setControlDisabled(orderByControl, [orderBySelect, orderDirSelect], !activeFields.includes('orderBy'));
+    setControlDisabled(limitControl, [limitInput], !activeFields.includes('limit'));
   }
 
   function renumberConditions() {
