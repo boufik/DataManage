@@ -422,7 +422,8 @@
     });
     const modes = [...freq.entries()]
       .filter(([, count]) => count === maxCount)
-      .map(([val]) => val);
+      .map(([val]) => val)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
     const rows = [
       ['Mode value(s)', modes.join(', ')],
@@ -475,11 +476,8 @@
     else if (kind === 'sum') result = values.reduce((a, b) => a + b, 0);
     else result = sampleStd(values);
 
-    const rows = [
-      [label, Number.isNaN(result) ? 'N/A (need at least 2 values)' : result.toFixed(4)],
-      ['Values used', String(values.length)]
-    ];
-    appendResult(`${label} for column "${col}"`, buildKeyValueTable(rows));
+    const displayValue = Number.isNaN(result) ? 'N/A (need at least 2 values)' : result.toFixed(4);
+    createResultCard(`${label} for column "${col}"`, () => {}, displayValue);
   }
 
   function runUniqueAnalysis() {
@@ -488,15 +486,14 @@
     const unique = [...new Set(values)];
 
     const rows = [['Unique value count', String(unique.length)]];
-    let extra = '';
     if (unique.length > 0) {
       const shown = unique.slice(0, UNIQUE_VALUE_DISPLAY_LIMIT);
       const label = unique.length > shown.length
         ? `Values (first ${shown.length} of ${unique.length})`
         : 'Values';
-      extra = `<p class="unique-values"><strong>${label}:</strong> ${shown.map(escapeHtml).join(', ')}</p>`;
+      rows.push([label, shown.join(', ')]);
     }
-    appendResult(`Unique Values for column "${col}"`, buildKeyValueTable(rows) + extra);
+    appendResult(`Unique Values for column "${col}"`, buildKeyValueTable(rows));
   }
 
   function formatNumber(n) {
@@ -586,25 +583,29 @@
     if (rankable.length > 0) {
       const bestCols = [...rankable].sort((a, b) => b.percentileValue - a.percentileValue).slice(0, 3);
       const worstCols = [...rankable].sort((a, b) => a.percentileValue - b.percentileValue).slice(0, 3);
-      summaryHtml = `<p><strong>Best columns:</strong> ${bestCols.map((c) => `"${escapeHtml(c.col)}" (${c.percentile} percentile)`).join(', ')}</p>` +
-        `<p><strong>Worst columns:</strong> ${worstCols.map((c) => `"${escapeHtml(c.col)}" (${c.percentile} percentile)`).join(', ')}</p>`;
+      const formatRankedEntry = (c) => {
+        const style = `color: ${percentileColor(c.percentileValue)}; font-weight: 600;`;
+        return `<li>"${escapeHtml(c.col)}" (<span style="${style}">${escapeHtml(c.percentile)} percentile</span>)</li>`;
+      };
+      summaryHtml = `<p><strong>Best columns:</strong></p><ul class="entry-list">${bestCols.map(formatRankedEntry).join('')}</ul>` +
+        `<p><strong>Worst columns:</strong></p><ul class="entry-list">${worstCols.map(formatRankedEntry).join('')}</ul>`;
     }
 
     const formatBestWorstEntry = (entry) => {
       const tiesText = entry.ties.length
-        ? ` (tied with ${entry.ties.map((t) => `ID ${escapeHtml(String(t.id))}`).join(', ')})`
+        ? ` (tied with IDs: ${joinWithAnd(entry.ties.map((t) => escapeHtml(String(t.id))))})`
         : '';
-      return `"${escapeHtml(entry.col)}"${tiesText}`;
+      return `<li>"${escapeHtml(entry.col)}"${tiesText}</li>`;
     };
 
     let bestInHtml = '';
     if (bestInEntries.length > 0) {
-      bestInHtml = `<p class="row-best-in"><strong>The best in:</strong> ${bestInEntries.map(formatBestWorstEntry).join(', ')}</p>`;
+      bestInHtml = `<div class="row-best-in"><p><strong>The best in:</strong></p><ul class="entry-list">${bestInEntries.map(formatBestWorstEntry).join('')}</ul></div>`;
     }
 
     let worstInHtml = '';
     if (worstInEntries.length > 0) {
-      worstInHtml = `<p class="row-worst-in"><strong>The worst in:</strong> ${worstInEntries.map(formatBestWorstEntry).join(', ')}</p>`;
+      worstInHtml = `<div class="row-worst-in"><p><strong>The worst in:</strong></p><ul class="entry-list">${worstInEntries.map(formatBestWorstEntry).join('')}</ul></div>`;
     }
 
     const tableRows = columnStats.map((c) => {
@@ -662,9 +663,8 @@
       ? conditions.map((c) => `${c.col} ${c.op} "${c.val}"`).join(' AND ')
       : '(no filters — counting all rows)';
     const rows = [
-      ['Matching rows', String(matchCount)],
-      ['Total rows', String(state.rows.length)],
-      ['Conditions', description]
+      ['Conditions', description],
+      ['Matching / Total rows', `${matchCount} / ${state.rows.length}`]
     ];
     appendResult('Count with Filters', buildKeyValueTable(rows));
   }
@@ -787,7 +787,7 @@
     return `<table class="kv-table">${rowsHtml}</table>`;
   }
 
-  function createResultCard(operationLabel, buildBody) {
+  function createResultCard(operationLabel, buildBody, headerValue) {
     resultCounter += 1;
 
     const card = document.createElement('div');
@@ -796,9 +796,21 @@
     const header = document.createElement('div');
     header.className = 'result-item-header';
 
+    const titleGroup = document.createElement('div');
+    titleGroup.className = 'result-title-group';
+
     const heading = document.createElement('h3');
     heading.textContent = `Result ${resultCounter}: ${operationLabel}`;
-    header.appendChild(heading);
+    titleGroup.appendChild(heading);
+
+    if (headerValue !== undefined) {
+      const badge = document.createElement('span');
+      badge.className = 'result-value-badge';
+      badge.textContent = headerValue;
+      titleGroup.appendChild(badge);
+    }
+
+    header.appendChild(titleGroup);
 
     const deleteBtn = document.createElement('button');
     deleteBtn.type = 'button';
@@ -844,5 +856,10 @@
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  function joinWithAnd(items) {
+    if (items.length === 1) return items[0];
+    return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
   }
 })();
