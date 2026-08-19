@@ -84,32 +84,22 @@
         </div>
 
         <div class="sql-fields-row" id="sqlFieldsRow">
-          <div class="control-group-stack" id="selectOperationGroup">
-            <div class="control-group" id="baseOpControl">
-              <label for="sqlFunctionSelect">Operation</label>
-              <select id="sqlFunctionSelect">
-                <option value="filterCount">COUNT(*)</option>
-                <option value="query">SELECT columns</option>
-              </select>
-            </div>
-
-            <div class="control-group" id="selectControl">
-              <label>Columns to print</label>
-              <div id="selectColumns" class="checkbox-list"></div>
-            </div>
+          <div class="control-group" id="baseOpControl">
+            <label for="sqlFunctionSelect">Operation</label>
+            <select id="sqlFunctionSelect">
+              <option value="filterCount">COUNT(*)</option>
+              <option value="query">SELECT columns</option>
+            </select>
           </div>
 
           <div class="control-group" id="orderByControl">
             <label>ORDER BY</label>
             <div class="inline-fields">
               <select id="orderBySelect"><option value="">(none)</option></select>
-              <div class="direction-field">
-                <label class="sub-label" for="orderDirSelect">Sorting</label>
-                <select id="orderDirSelect">
-                  <option value="ASC">ASC</option>
-                  <option value="DESC">DESC</option>
-                </select>
-              </div>
+              <select id="orderDirSelect">
+                <option value="ASC">ASC</option>
+                <option value="DESC">DESC</option>
+              </select>
             </div>
           </div>
 
@@ -117,6 +107,11 @@
             <label for="limitInput">LIMIT</label>
             <input type="number" id="limitInput" class="number-input-narrow" min="0" value="10" />
           </div>
+        </div>
+
+        <div class="control-group" id="selectControl">
+          <label>Columns to print</label>
+          <div id="selectColumns" class="checkbox-list"></div>
         </div>
 
         <div class="control-group" id="whereControl">
