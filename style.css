@@ -778,6 +778,39 @@ input[type="checkbox"]:focus-visible {
   color: var(--danger);
 }
 
+/* ----- Footer ----- */
+
+.site-footer {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.5rem;
+}
+
+.github-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.github-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.github-btn svg {
+  flex-shrink: 0;
+}
+
 /* ----- Toast ----- */
 
 .toast {
@@ -804,4 +837,31 @@ input[type="checkbox"]:focus-visible {
 
 .toast--error {
   background: var(--danger);
+}
+
+/* ----- Mobile ----- */
+
+@media (max-width: 600px) {
+  main {
+    max-width: 100%;
+    min-width: 0;
+    padding: 1.25rem 1rem 2.5rem;
+    gap: 1rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .card h2 {
+    font-size: 1.2rem;
+  }
+
+  .message--success {
+    max-width: 100%;
+  }
+
+  .row-summary-panel {
+    flex-basis: 100%;
+  }
 }
