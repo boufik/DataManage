@@ -274,7 +274,7 @@
       selectColumnsContainer.appendChild(checkboxLabel);
     });
 
-    if (state.columns.length) orderBySelect.value = state.columns[0];
+    orderBySelect.value = '';
 
     updateColumnTypeLabel();
 
@@ -572,33 +572,61 @@
         worstInEntries.push({ col, ties });
       }
 
+      const avgDiffValue = avg > 0 ? ((thisValue - avg) / avg) * 100 : null;
+
       return {
         col, value: formatNumber(thisValue), avg: formatNumber(avg), percentile, percentileValue,
-        assessment, assessmentClass
+        avgDiffValue, assessment, assessmentClass
       };
     });
 
-    const rankable = columnStats.filter((c) => typeof c.percentileValue === 'number');
+    const pctRankable = columnStats.filter((c) => typeof c.percentileValue === 'number');
+    const avgRankable = columnStats.filter((c) => typeof c.avgDiffValue === 'number');
+
+    const formatPercentileEntry = (c) => {
+      const style = `color: ${percentileColor(c.percentileValue)}; font-weight: 600;`;
+      return `<li>"${escapeHtml(c.col)}" (<span style="${style}">${escapeHtml(c.percentile)} percentile</span>)</li>`;
+    };
+    const formatAvgEntry = (c) => {
+      const cls = c.avgDiffValue >= 0 ? 'assessment-above' : 'assessment-below';
+      const sign = c.avgDiffValue > 0 ? '+' : c.avgDiffValue < 0 ? '−' : '';
+      const magnitude = Math.abs(c.avgDiffValue).toFixed(1);
+      return `<li>"${escapeHtml(c.col)}" (<span class="${cls}">${sign}${magnitude}% vs average</span>)</li>`;
+    };
+    const buildList = (heading, entries) =>
+      entries.length ? `<p><strong>${heading}:</strong></p><ul class="entry-list">${entries.join('')}</ul>` : '';
+
+    const pctBest = [...pctRankable]
+      .filter((c) => c.percentileValue > 50)
+      .sort((a, b) => b.percentileValue - a.percentileValue)
+      .slice(0, 3);
+    const pctWorst = [...pctRankable]
+      .filter((c) => c.percentileValue < 50)
+      .sort((a, b) => a.percentileValue - b.percentileValue)
+      .slice(0, 3);
+    const avgBest = [...avgRankable]
+      .filter((c) => c.avgDiffValue > 0)
+      .sort((a, b) => b.avgDiffValue - a.avgDiffValue)
+      .slice(0, 3);
+    const avgWorst = [...avgRankable]
+      .filter((c) => c.avgDiffValue < 0)
+      .sort((a, b) => a.avgDiffValue - b.avgDiffValue)
+      .slice(0, 3);
+
+    const pctPanelInner = buildList('Top 3 Best Columns', pctBest.map(formatPercentileEntry)) +
+      buildList('Top 3 Worst Columns', pctWorst.map(formatPercentileEntry));
+    const avgPanelInner = buildList('Top 3 Best Columns', avgBest.map(formatAvgEntry)) +
+      buildList('Top 3 Worst Columns', avgWorst.map(formatAvgEntry));
+
     let summaryHtml = '';
-    if (rankable.length > 0) {
-      const bestCols = rankable
-        .filter((c) => c.percentileValue > 50)
-        .sort((a, b) => b.percentileValue - a.percentileValue)
-        .slice(0, 3);
-      const worstCols = rankable
-        .filter((c) => c.percentileValue < 50)
-        .sort((a, b) => a.percentileValue - b.percentileValue)
-        .slice(0, 3);
-      const formatRankedEntry = (c) => {
-        const style = `color: ${percentileColor(c.percentileValue)}; font-weight: 600;`;
-        return `<li>"${escapeHtml(c.col)}" (<span style="${style}">${escapeHtml(c.percentile)} percentile</span>)</li>`;
-      };
-      if (bestCols.length > 0) {
-        summaryHtml += `<p><strong>Top 3 Best Columns:</strong></p><ul class="entry-list">${bestCols.map(formatRankedEntry).join('')}</ul>`;
-      }
-      if (worstCols.length > 0) {
-        summaryHtml += `<p><strong>Top 3 Worst Columns:</strong></p><ul class="entry-list">${worstCols.map(formatRankedEntry).join('')}</ul>`;
-      }
+    if (pctPanelInner || avgPanelInner) {
+      const pctPanel = pctPanelInner
+        ? `<div class="row-summary-panel"><h4>In terms of percentile</h4>${pctPanelInner}</div>`
+        : '';
+      const avgPanel = avgPanelInner
+        ? `<div class="row-summary-panel"><h4>In terms of average</h4>${avgPanelInner}</div>`
+        : '';
+      summaryHtml = `<div class="row-summary-split">${pctPanel}${avgPanel}</div>`;
     }
 
     const formatBestWorstEntry = (entry) => {
@@ -624,7 +652,7 @@
         : '';
       return `<tr><td>${escapeHtml(c.col)}</td><td>${escapeHtml(String(c.value))}</td><td>${escapeHtml(String(c.avg))}</td><td class="${c.assessmentClass}">${escapeHtml(c.assessment)}</td><td${percentileStyle}>${escapeHtml(c.percentile)}</td></tr>`;
     }).join('');
-    const tableHtml = `<div class="table-scroll"><table><thead><tr><th>Column</th><th>Value</th><th>Average</th><th>Assessment</th><th>Percentile</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+    const tableHtml = `<div class="table-scroll"><table><thead><tr><th>Column</th><th>Value</th><th>Average</th><th>Assessment in terms of average</th><th>Percentile</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
 
     appendResult(`Statistics across row ${rowNumber}`, summaryHtml + bestInHtml + worstInHtml + tableHtml);
   }
