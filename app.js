@@ -426,11 +426,11 @@
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
     const rows = [
-      ['Mode value(s)', modes.join(', ')],
+      ['Most Frequent Value(s)', modes.join(', ')],
       ['Frequency', String(maxCount)],
-      ['Total non-empty values', String(values.length)]
+      ['Total Non-empty Values', String(values.length)]
     ];
-    appendResult(`Mode for column "${col}"`, buildKeyValueTable(rows));
+    appendResult(`Most Frequent Value for column "${col}"`, buildKeyValueTable(rows));
   }
 
   function toNumericValues(col) {
@@ -485,7 +485,7 @@
     const values = getColumnValues(col).map((v) => String(v));
     const unique = [...new Set(values)];
 
-    const rows = [['Unique value count', String(unique.length)]];
+    const rows = [['Unique Value Count', String(unique.length)]];
     if (unique.length > 0) {
       const shown = unique.slice(0, UNIQUE_VALUE_DISPLAY_LIMIT);
       const label = unique.length > shown.length
@@ -581,14 +581,24 @@
     const rankable = columnStats.filter((c) => typeof c.percentileValue === 'number');
     let summaryHtml = '';
     if (rankable.length > 0) {
-      const bestCols = [...rankable].sort((a, b) => b.percentileValue - a.percentileValue).slice(0, 3);
-      const worstCols = [...rankable].sort((a, b) => a.percentileValue - b.percentileValue).slice(0, 3);
+      const bestCols = rankable
+        .filter((c) => c.percentileValue > 50)
+        .sort((a, b) => b.percentileValue - a.percentileValue)
+        .slice(0, 3);
+      const worstCols = rankable
+        .filter((c) => c.percentileValue < 50)
+        .sort((a, b) => a.percentileValue - b.percentileValue)
+        .slice(0, 3);
       const formatRankedEntry = (c) => {
         const style = `color: ${percentileColor(c.percentileValue)}; font-weight: 600;`;
         return `<li>"${escapeHtml(c.col)}" (<span style="${style}">${escapeHtml(c.percentile)} percentile</span>)</li>`;
       };
-      summaryHtml = `<p><strong>Best columns:</strong></p><ul class="entry-list">${bestCols.map(formatRankedEntry).join('')}</ul>` +
-        `<p><strong>Worst columns:</strong></p><ul class="entry-list">${worstCols.map(formatRankedEntry).join('')}</ul>`;
+      if (bestCols.length > 0) {
+        summaryHtml += `<p><strong>Top 3 Best Columns:</strong></p><ul class="entry-list">${bestCols.map(formatRankedEntry).join('')}</ul>`;
+      }
+      if (worstCols.length > 0) {
+        summaryHtml += `<p><strong>Top 3 Worst Columns:</strong></p><ul class="entry-list">${worstCols.map(formatRankedEntry).join('')}</ul>`;
+      }
     }
 
     const formatBestWorstEntry = (entry) => {
@@ -616,7 +626,7 @@
     }).join('');
     const tableHtml = `<div class="table-scroll"><table><thead><tr><th>Column</th><th>Value</th><th>Average</th><th>Assessment</th><th>Percentile</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
 
-    appendResult(`Stats across row ${rowNumber}`, summaryHtml + bestInHtml + worstInHtml + tableHtml);
+    appendResult(`Statistics across row ${rowNumber}`, summaryHtml + bestInHtml + worstInHtml + tableHtml);
   }
 
   function percentileColor(percentileValue) {

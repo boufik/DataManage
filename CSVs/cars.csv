@@ -1,0 +1,11 @@
+model,cc,hp,torque_nm,weight_kg,top_speed_kph,body_type,fuel
+Suzuki Vitara,1373,140,220,1235,200,SUV,Petrol
+Toyota Corolla,1798,122,142,1370,180,Sedan,Hybrid
+Volkswagen Golf,1498,150,250,1320,216,Hatchback,Petrol
+Ford Focus,1499,182,240,1363,222,Hatchback,Petrol
+BMW 320i,1998,184,300,1520,235,Sedan,Petrol
+Audi Q5,1984,265,370,1795,237,SUV,Petrol
+Honda Civic,1498,182,240,1340,220,Sedan,Petrol
+Mazda CX-5,2488,194,258,1590,207,SUV,Petrol
+Nissan Leaf,0,150,320,1580,144,Hatchback,Electric
+Peugeot 3008,1598,180,250,1430,209,SUV,Diesel

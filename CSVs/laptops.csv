@@ -1,0 +1,11 @@
+model,ram_gb,storage_gb,screen_inch,battery_wh,price_usd,brand,os
+MacBook Air M3,16,512,13.6,52,1299,Apple,macOS
+Dell XPS 13,16,512,13.4,55,1099,Dell,Windows
+Lenovo ThinkPad X1,32,1024,14.0,57,1699,Lenovo,Windows
+HP Spectre x360,16,1024,13.5,66,1249,HP,Windows
+Asus ZenBook 14,16,512,14.0,75,999,Asus,Windows
+Acer Swift Go,8,256,14.0,65,749,Acer,Windows
+Microsoft Surface 5,8,256,13.5,47,999,Microsoft,Windows
+Framework 13,32,1024,13.5,61,1399,Framework,Linux
+Razer Blade 14,16,1024,14.0,68,1999,Razer,Windows
+Samsung Galaxy Book4,16,512,15.6,54,1049,Samsung,Windows
